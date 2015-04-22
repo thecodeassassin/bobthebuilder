@@ -1,0 +1,9 @@
+[main]
+gnupghome = %home%/.gnupg
+author = Stephen Hoogendijk
+author_email = stephen@tca0.nl
+
+
+[endpoints]
+stable = ppa:phalcon/stable
+beta = ppa:phalcon/beta
