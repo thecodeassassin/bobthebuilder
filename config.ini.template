@@ -1,9 +1,15 @@
 [main]
 gnupghome = %home%/.gnupg
-author = Stephen Hoogendijk
-author_email = stephen@tca0.nl
+author =
+author_email = 
 
+# git url to the source of the project to build
+git_url = https://github.com/phalcon/cphalcon
 
+# list of available PPA endpoints
 [endpoints]
 stable = ppa:phalcon/stable
 beta = ppa:phalcon/beta
+
+[channels]
+stable = https://launchpad.net/~phalcon/+archive/ubuntu/stable/+packages?field.name_filter=&field.status_filter=&field.series_filter=

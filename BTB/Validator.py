@@ -5,6 +5,8 @@ import re
 import subprocess
 import sys
 from urllib import request
+from BTB.OutputControl import OutputControl
+import configparser
 
 class Validator:
 
@@ -25,23 +27,88 @@ class Validator:
 
     def validate(self):
 
-        # validate the changelog file
-        self.check_changelog()
+
+        # set the config file if passed as an option
+        if self.runner.options.config is not None:
+            configfile = self.runner.options.config
+        else:
+            configfile = os.path.abspath('config.ini')
+
+        OutputControl.success('=> Using config file %s' % configfile)
+
+        if not os.path.exists(configfile):
+            print('Given config file was not found in the given path')
+            exit(1)
+
+        print('=> Config file found, verifying...')
+
+        self.runner.config = self.validate_config(configfile)
 
         # validate the release that needs to be tagged
         self.check_version()
 
+    def validate_config(self, configfile):
+        """
+
+        :param configfile:
+        """
+        cfg = configparser.ConfigParser()
+
+        try:
+            cfg.read(configfile)
+        except configparser.ParsingError as exc:
+            OutputControl.fail('Could not read configuration: %s' % exc)
+            sys.exit(1)
+
+        if not cfg.has_section('endpoints'):
+            OutputControl.fail('No endpoints section found in config')
+            sys.exit(1)
+
+        if not cfg.has_section('main'):
+            OutputControl.fail('No main section found in config')
+            sys.exit(1)
+
+        if not cfg.has_option('main', 'git_url'):
+            OutputControl.fail('No git_url found in config')
+            sys.exit(1)
+
+        if not cfg.has_option('main', 'gnpughome'):
+            gnupghome = os.path.join(os.path.expanduser('~'), '.gnupg')
+        else:
+            gnupghome = cfg.get('main', 'gnupghome')
+
+        if not os.path.exists(gnupghome) or not os.access(gnupghome, os.O_RDONLY):
+            OutputControl.fail('gnupg home %s does not exist or is not readable! Please configure your gnupg' % gnupghome)
+            sys.exit(1)
+
+        # get the git url from the config
+        git_url = cfg.get('main', 'git_url')
+
+        try:
+            request.urlopen(git_url)
+        except request.URLError as ex:
+            OutputControl.fail('Error: Phalcon git url %s unreachable, cannot continue' % self.runner.git_url)
+            sys.exit(1)
+
+        OutputControl.success('=> Source git URL set to %s' % git_url)
+        self.runner.git_url = git_url
+
+        self.gnupghome = gnupghome
+
+        OutputControl.success('=> Configuration passed initial test')
+
+        return cfg
 
     def check_changelog(self):
 
 
-        changelog_path = os.path.join(self.release_path, 'changelog.json')
-        print('=> Checking changelog file %s' % changelog_path)
-        if not os.path.exists(changelog_path):
-            print('Error: Could not find a changelog.json file in the release folder')
-            sys.exit(1)
-
-        changelog = open(changelog_path)
+        # changelog_path = os.path.join(self.release_path, 'changelog.json')
+        # print('=> Checking changelog file %s' % changelog_path)
+        # if not os.path.exists(changelog_path):
+        #     print('Error: Could not find a changelog.json file in the release folder')
+        #     sys.exit(1)
+        #
+        # changelog = open(changelog_path)
 
         # changelog_lines = changelog.readlines()
         # num = 0
@@ -107,9 +174,14 @@ class Validator:
         print('=> Checking version %s...' % self.version)
 
         try:
-            request.urlopen(self.runner.phalcon_git_url + '/tree/' + self.version)
+            request.urlopen(self.runner.git_url + '/tree/' + self.version)
         except request.URLError:
-            print('Error: cannot find version %s in the remote repository!' % self.version)
+            OutputControl.fail('Error: cannot find tag %s in the remote repository!' % self.version)
+            sys.exit(1)
 
+        # try:
+        #     request.urlopen(self.runner.stable_channel_url)
+        # except request.URLError:
+        #     OutputControl.fail("=> Cannot read repository URL")
 
-        print('=> Version %s is a valid version' % self.version)
+        OutputControl.success('=> Version %s has been found in the repository' % self.version)
